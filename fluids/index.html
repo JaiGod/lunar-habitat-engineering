@@ -63,7 +63,7 @@ function state(){ const s=+$('#pump').value/100, crew=+$('#crew').value, dem=+$(
   const qLeak=leak? 0.62*Math.PI*0.0015**2/4*Math.sqrt(2*Math.max(dp*0.7,0)/RHO):0;       // 1.5 mm crack in the supply main
   const daily=crew*dem, cycleMin=daily/(Q*60000||1e-9), duty=Math.min(1,cycleMin/1440);
   const qbep=QMAX*s*0.55, eta=Math.max(0.05,0.62*(1-Math.pow(Q/qbep-1,2)*0.6));
-  const power=Q>0?dp*Q/eta:0, loss=daily*(1-RECOVERY)+ (leak? qLeak*60000*1440*duty:0);
+  const power=Q>0?dp*Q/eta:0, loss=daily*(1-RECOVERY)+ (leak? qLeak*60000*1440:0);   // the main stays pressurised (accumulator), so a crack leaks all day
   return {s,crew,dem,Q,dp,qLeak,v:Q/A,duty,eta,power,daily,loss,days:STORE/loss,stat:r.stat}; }
 // ---------------------------------------------------------------- scene
 const canvas=$('#c'), renderer=new THREE.WebGLRenderer({canvas,antialias:true}); renderer.setPixelRatio(Math.min(devicePixelRatio,2)); renderer.toneMapping=THREE.ACESFilmicToneMapping;
@@ -79,6 +79,7 @@ new GLTFLoader().load('../models/fluids_module.glb', g=>{ scene.add(g.scene);
     if(ex.role==='tank_level'){ tanks.push(o); o.userData.h0=o.scale.y; }
     if(ex.role==='load'&&ex.demand==='aquaponics') bubbleSrc.push(o);
     if(ex.role==='leak') leakObj=o;
+    if(/LED/.test(o.name)&&o.material.emissive){ o.material.emissiveIntensity=0.25; o.material.color.set(0x3a2a40); }
     if(/Water/.test(o.name)){ o.material.transparent=true; o.material.opacity=0.55; } });
   $('#load').remove(); buildFlow(); }, undefined, ()=>{ $('#load').textContent='The 3D model has not been built yet (fluids_module.glb). The calculations still work.'; });
 function resize(){ const r=canvas.parentElement.getBoundingClientRect(); renderer.setSize(r.width,r.height,false); camera.aspect=r.width/r.height; camera.updateProjectionMatrix(); } addEventListener('resize',resize); resize();
@@ -98,7 +99,7 @@ function ui(){ st=state();
   $('#vpump').textContent=Math.round(st.s*100)+'%'; $('#vcrew').textContent=st.crew; $('#vdem').textContent=st.dem+' L/day';
   const metered=st.Q*60000, branches=(st.Q-st.qLeak)*60000;
   const rows=[['Pump discharge pressure',`${fmt(st.dp/1000,1)} kPa`,''],['Flow rate',`${fmt(metered,1)} L/min`,st.Q<=0?'bad':''],['Water speed in the pipe',`${fmt(st.v,2)} m/s`,st.v>2.5?'warn':''],
-    ['Pump efficiency',`${fmt(st.eta*100)}%`,st.eta<0.4?'warn':'good'],['Pump power',`${fmt(st.power)} W`,''],['Pump runs',`${fmt(st.duty*24,1)} h a day to meet ${fmt(st.daily)} L`,st.duty>=1?'bad':''],
+    ['Pump efficiency',`${fmt(st.eta*100)}%`,st.eta<0.4?'warn':'good'],['Pump power',`${fmt(st.power)} W`,''],['Pump runs',`${st.duty*24<1?fmt(st.duty*1440)+' min':fmt(st.duty*24,1)+' h'} a day to deliver ${fmt(st.daily)} L`,st.duty>=1?'bad':''],
     ['Water lost per day',`${fmt(st.loss,1)} L (${leak?'leak + ':''}2% not recovered)`,leak?'bad':''],['Storage lasts',`${fmt(st.days)} days without resupply`,st.days<90?'warn':'good'],
     ['Lift pressure for 1.6 m',`${fmt(st.stat/1000,2)} kPa on the ${gMoon?'Moon':'Earth'}`,'']];
   $('#out').innerHTML=rows.map(([a,b,c])=>`<div class="row ${c}"><span>${a}</span><b>${b}</b></div>`).join('');
