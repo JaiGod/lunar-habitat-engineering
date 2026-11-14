@@ -61,7 +61,7 @@ import * as THREE from 'three';
 import {GLTFLoader} from 'three/addons/loaders/GLTFLoader.js';
 import {OrbitControls} from 'three/addons/controls/OrbitControls.js';
 import {RoomEnvironment} from 'three/addons/environments/RoomEnvironment.js';
-const $=s=>document.querySelector(s);
+const noCull=o=>{o.frustumCulled=false;return o;}; const $=s=>document.querySelector(s);
 // ---------------------------------------------------------------- dose model (see sources in the panel)
 const LAYERS=[ // id, label, areal g/cm2, hydrogen-rich?
   ['shell','Aluminium pressure shell (always on)',1.35,false],['poly','Polyethylene liner, 10 cm',9.5,true],
@@ -78,15 +78,15 @@ function dose(inShelter){ const {H,R}=areal(inShelter);
   return GCR_FREE*(1-red); }
 // ---------------------------------------------------------------- three.js scene
 const canvas=$('#c'), renderer=new THREE.WebGLRenderer({canvas,antialias:true});
-renderer.setPixelRatio(Math.min(devicePixelRatio,2)); renderer.localClippingEnabled=true; renderer.toneMapping=THREE.ACESFilmicToneMapping; renderer.toneMappingExposure=0.9;
+renderer.setPixelRatio(Math.min(devicePixelRatio,2)); renderer.localClippingEnabled=true; renderer.toneMapping=THREE.ACESFilmicToneMapping; renderer.toneMappingExposure=0.7;
 const scene=new THREE.Scene(); scene.background=new THREE.Color(0x05070a);
-scene.environment=new THREE.PMREMGenerator(renderer).fromScene(new RoomEnvironment(),0.04).texture;
-const camera=new THREE.PerspectiveCamera(38,1,0.1,400); camera.position.set(9,7,15);
+scene.environment=new THREE.PMREMGenerator(renderer).fromScene(new RoomEnvironment(),0.04).texture; scene.environmentIntensity=0.35;
+const camera=new THREE.PerspectiveCamera(38,1,0.1,400); camera.position.set(13,9,21);
 const controls=new OrbitControls(camera,canvas); controls.target.set(0,2.4,0); controls.enableDamping=true; controls.maxPolarAngle=Math.PI*0.49; controls.minDistance=5; controls.maxDistance=45;
-const sunLight=new THREE.DirectionalLight(0xffffff,2.6); scene.add(sunLight); scene.add(new THREE.AmbientLight(0x8899aa,0.25));
+const sunLight=new THREE.DirectionalLight(0xffffff,1.8); scene.add(sunLight); scene.add(new THREE.AmbientLight(0x8899aa,0.25));
 // stars + sun disc
 { const g=new THREE.BufferGeometry(), p=[]; for(let i=0;i<1500;i++){ const t=Math.random()*Math.PI*2, u=Math.random()*0.95+0.05, r=180; p.push(r*Math.sqrt(1-u*u)*Math.cos(t), r*u, r*Math.sqrt(1-u*u)*Math.sin(t)); }
-  g.setAttribute('position',new THREE.Float32BufferAttribute(p,3)); scene.add(new THREE.Points(g,new THREE.PointsMaterial({color:0xaab4c4,size:0.5,sizeAttenuation:true}))); }
+  g.setAttribute('position',new THREE.Float32BufferAttribute(p,3)); scene.add(noCull(new THREE.Points(g,new THREE.PointsMaterial({color:0xaab4c4,size:0.5,sizeAttenuation:true})))); }
 const sunDisc=new THREE.Mesh(new THREE.SphereGeometry(2.2,24,12),new THREE.MeshBasicMaterial({color:0xfff2c0})); scene.add(sunDisc);
 const clip=new THREE.Plane(new THREE.Vector3(0,0,-1),0); let cutOn=true, heatOn=true;
 const AX_Y=2.65; const R={shell:2.25,poly:2.35,water:2.55,regolith:3.6,shelterIn:0}; // radii from the Blender build script
@@ -105,7 +105,7 @@ addEventListener('resize',resize); resize();
 // ---------------------------------------------------------------- particles
 const N=700, pos=new Float32Array(N*3), col=new Float32Array(N*3), P=[];
 const pg=new THREE.BufferGeometry(); pg.setAttribute('position',new THREE.BufferAttribute(pos,3)); pg.setAttribute('color',new THREE.BufferAttribute(col,3));
-const pts=new THREE.Points(pg,new THREE.PointsMaterial({size:0.16,vertexColors:true,transparent:true,opacity:0.95,depthWrite:false,blending:THREE.AdditiveBlending})); scene.add(pts);
+const pts=new THREE.Points(pg,new THREE.PointsMaterial({size:0.16,vertexColors:true,transparent:true,opacity:0.95,depthWrite:false,blending:THREE.AdditiveBlending})); pts.frustumCulled=false; scene.add(pts);
 const C={inc:new THREE.Color(0xff7a2f),sec:new THREE.Color(0xffd34d),abs:new THREE.Color(0x4fb3d9),hit:new THREE.Color(0xff3b3b)};
 for(let i=0;i<N;i++) P.push({a:false});
 let sunDir=new THREE.Vector3(); let hits=0, hitWindow=[];
@@ -152,10 +152,10 @@ function zoneColor(f){ return f<0.5?new THREE.Color(0x3fb950):f<1?new THREE.Colo
 function applyLayers(){
   for(const id in parts) parts[id].forEach(o=>o.visible=on[id]);
   const dw=dose(false), ds=dose(true);
-  if(source==='spe'){ $('#mlbl').textContent='Dose from one large solar storm, work area'; $('#mval').textContent=fmt(dw)+' mSv';
+  if(source==='spe'){ $('#mlbl').textContent='Dose from one large solar storm, work area'; $('#mval').textContent=fmt(dw,dw<10?1:0)+' mSv';
     $('#mfill').style.width=Math.min(100,dw/SPE_D0*100)+'%'; $('#mfill').style.background=dw>SPE_LIMIT?'var(--warn)':dw>SPE_LIMIT/2?'var(--caut)':'var(--ok)'; $('#mlim').style.left=(SPE_LIMIT/SPE_D0*100)+'%';
     $('#mnote').textContent=`Line marks NASA's limit of ${SPE_LIMIT} mSv per event.`;
-    $('#zw').textContent=fmt(dw)+' mSv'; $('#zs').textContent=fmt(ds)+' mSv';
+    $('#zw').textContent=fmt(dw,dw<10?1:0)+' mSv'; $('#zs').textContent=fmt(ds,ds<10?2:0)+' mSv';
     $('#explain').textContent=dw>SPE_LIMIT?'Without enough shielding a single big solar storm would exceed the limit. Watch most protons pass straight through.':`Solar storm protons are fairly low energy, so ${on.water||on.regolith?'these layers stop most of them':'even thin layers help'}. That is why a storm shelter works: crew get inside and wait out the event, usually hours.`; }
   else { $('#mlbl').textContent='Cosmic ray dose rate, work area'; $('#mval').textContent=fmt(dw,2)+' mSv/day';
     $('#mfill').style.width=Math.min(100,dw/GCR_FREE*100)+'%'; $('#mfill').style.background=dw*365>600?'var(--warn)':'var(--caut)'; $('#mlim').style.left='100%';
