@@ -23,7 +23,8 @@
 .loading{position:absolute;inset:0;display:grid;place-items:center;color:var(--mut);font-size:15px;text-align:center;padding:20px}
 .alarm{margin-top:10px;padding:8px 12px;border-left:3px solid var(--warn);font-size:14px;color:#ffc9cb;display:none}
 .vscale{display:flex;align-items:center;gap:8px;font-size:12.5px;color:var(--mut);margin-top:6px}.vscale i{flex:1;height:8px;background:linear-gradient(90deg,#1f5f99,#4fb3d9,#c9f0ff)}
-</style></head><body>
+</style><script src="../js/device.js" defer></script>
+</head><body>
 <header class="top"><a class="brand" href="../">Lunar Habitat Engineering Portal<small>Project ARES · NASA HUNCH</small></a>
 <nav><a href="../#fluids">Fluid dynamics</a><a href="../radiation/">Radiation 3D</a><a class="on" href="./">Fluid lab 3D</a><a href="../food/">Food 3D</a><a href="../simulator/">Simulator</a><a href="../#sites">Our websites</a></nav></header>
 <div class="app">
@@ -48,6 +49,7 @@ import * as THREE from 'three';
 import {GLTFLoader} from 'three/addons/loaders/GLTFLoader.js';
 import {OrbitControls} from 'three/addons/controls/OrbitControls.js';
 import {RoomEnvironment} from 'three/addons/environments/RoomEnvironment.js';
+import {VRButton} from 'three/addons/webxr/VRButton.js';
 const noCull=o=>{o.frustumCulled=false;return o;}; const $=s=>document.querySelector(s), fmt=(v,d=0)=>(+v).toLocaleString('en-US',{maximumFractionDigits:d,minimumFractionDigits:d});
 // ---------------------------------------------------------------- hydraulics
 let gMoon=true, leak=false;
@@ -69,6 +71,12 @@ function state(){ const s=+$('#pump').value/100, crew=+$('#crew').value, dem=+$(
 const canvas=$('#c'), renderer=new THREE.WebGLRenderer({canvas,antialias:true}); renderer.setPixelRatio(Math.min(devicePixelRatio,2)); renderer.toneMapping=THREE.ACESFilmicToneMapping;
 const scene=new THREE.Scene(); scene.background=new THREE.Color(0x0b0f14); scene.environment=new THREE.PMREMGenerator(renderer).fromScene(new RoomEnvironment(),0.04).texture; scene.environmentIntensity=0.5;
 const camera=new THREE.PerspectiveCamera(40,1,0.1,200); camera.position.set(6,8,11);
+// VR (WebXR): on a headset you stand inside the model at true scale (the Blender models are in metres)
+const dolly=new THREE.Group(); scene.add(dolly); dolly.add(camera);
+renderer.xr.enabled=true;
+renderer.xr.addEventListener('sessionstart',()=>dolly.position.set(0,0.1,4));
+renderer.xr.addEventListener('sessionend',()=>dolly.position.set(0,0,0));
+if(navigator.xr) navigator.xr.isSessionSupported('immersive-vr').then(ok=>{ if(!ok) return; const b=VRButton.createButton(renderer); b.style.position='absolute'; b.style.bottom='16px'; b.style.left='50%'; b.style.transform='translateX(-50%)'; b.style.zIndex='5'; canvas.parentElement.appendChild(b); }).catch(()=>{});
 const controls=new OrbitControls(camera,canvas); controls.target.set(0,0.6,0); controls.enableDamping=true; controls.maxPolarAngle=Math.PI*0.49;
 scene.add(new THREE.DirectionalLight(0xffffff,1.6).translateY(10).translateX(4)); scene.add(new THREE.AmbientLight(0x8899aa,0.35));
 const pipes=[], tanks=[], bubbleSrc=[]; let leakObj=null;
@@ -82,7 +90,7 @@ new GLTFLoader().load('../models/fluids_module.glb', g=>{ scene.add(g.scene);
     if(/LED/.test(o.name)&&o.material.emissive){ o.material.emissiveIntensity=0.25; o.material.color.set(0x3a2a40); }
     if(/Water/.test(o.name)){ o.material.transparent=true; o.material.opacity=0.55; } });
   $('#load').remove(); buildFlow(); }, undefined, ()=>{ $('#load').textContent='The 3D model has not been built yet (fluids_module.glb). The calculations still work.'; });
-function resize(){ const r=canvas.parentElement.getBoundingClientRect(); renderer.setSize(r.width,r.height,false); camera.aspect=r.width/r.height; camera.updateProjectionMatrix(); } addEventListener('resize',resize); resize();
+function resize(){ if(renderer.xr.isPresenting) return; const r=canvas.parentElement.getBoundingClientRect(); renderer.setSize(r.width,r.height,false); camera.aspect=r.width/r.height; camera.updateProjectionMatrix(); } addEventListener('resize',resize); resize();
 // flow particles along each pipe
 let flow=null, flowData=[];
 function buildFlow(){ const per=26; flowData=[]; pipes.forEach((p,pi)=>{ for(let k=0;k<Math.max(8,Math.round(per*p.len/6));k++) flowData.push({pi,u:Math.random()}); });
@@ -114,7 +122,7 @@ ui();
 // ---------------------------------------------------------------- animate
 const cSlow=new THREE.Color(0x1f5f99), cFast=new THREE.Color(0xc9f0ff), tmp=new THREE.Color(), vtmp=new THREE.Vector3();
 let last=performance.now(), t=0;
-(function loop(now){ const dt=Math.min(0.05,(now-last)/1000); last=now; t+=dt; controls.update();
+function loop(now){ if(now===undefined) now=performance.now(); const dt=Math.min(0.05,(now-last)/1000); last=now; t+=dt; controls.update();
   if(flow){ const P=flow.geometry.attributes.position.array, Cc=flow.geometry.attributes.color.array, vis=Math.min(3,st.v)*1.4;
     flowData.forEach((f,i)=>{ const p=pipes[f.pi]; let sp=vis; if(p.seg==='return') sp*=0.7; if(st.Q<=0) sp=0;
       const pulse=0.5+0.5*Math.sin(t*3 - f.u*12); f.u=(f.u+dt*sp/p.len)%1; p.curve.getPointAt(f.u,vtmp);
@@ -126,6 +134,7 @@ let last=performance.now(), t=0;
   if(leakObj){ const lp=leakObj.getWorldPosition(new THREE.Vector3()); spray.forEach((s,i)=>{ if(!s.a&&leak&&Math.random()<0.3){ s.a=true; s.p=lp.clone(); s.v=new THREE.Vector3(Math.random()*0.6-0.3,0.8+Math.random(),Math.random()*0.6-0.3); }
       if(s.a){ s.v.y-=(gMoon?1.62:9.81)*dt; s.p.addScaledVector(s.v,dt); if(s.p.y<0.1) s.a=false; } spos[i*3]=s.a?s.p.x:0; spos[i*3+1]=s.a?s.p.y:-99; spos[i*3+2]=s.a?s.p.z:0; }); sg.attributes.position.needsUpdate=true; }
   tanks.forEach(o=>{ if(!o.userData.base){ o.userData.base=o.scale.y; } });
-  renderer.render(scene,camera); requestAnimationFrame(loop); })(last);
+  renderer.render(scene,camera); }
+renderer.setAnimationLoop(loop);
 </script>
 </body></html>
