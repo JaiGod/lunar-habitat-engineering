@@ -1,0 +1,174 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Radiation Cross-Section Viewer · Lunar Habitat Engineering Portal</title>
+<meta name="description" content="Toggle water, polyethylene and regolith shielding on a 3D lunar habitat and watch solar storm and cosmic ray particles get absorbed or pass through, with a live dose meter.">
+<meta property="og:title" content="Radiation Cross-Section Viewer"><meta property="og:description" content="Switch shielding layers on a 3D lunar habitat and watch the dose meter change.">
+<meta property="og:image" content="https://jaigod.github.io/lunar-habitat-engineering/img/radiation.jpg"><meta name="twitter:card" content="summary_large_image">
+<link rel="icon" href="../favicon.svg">
+<link href="https://fonts.googleapis.com/css2?family=Public+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../style.css">
+<style>
+body{overflow-x:hidden}
+.app{display:grid;grid-template-columns:minmax(0,1fr) 360px;height:calc(100vh - 66px);min-height:620px}
+@media(max-width:980px){.app{grid-template-columns:1fr;height:auto}}
+.stage{position:relative;background:#05070a;min-height:420px}
+@media(max-width:980px){.stage{height:62vh}}
+#c{position:absolute;inset:0;width:100%;height:100%;display:block;touch-action:none}
+.side{border-left:1px solid var(--line);background:var(--panel);overflow:auto;padding:18px}
+@media(max-width:980px){.side{border-left:0;border-top:1px solid var(--line)}}
+.side h3{font-size:15px;margin:16px 0 8px}.side h3:first-child{margin-top:0}
+.seg{display:grid;grid-template-columns:1fr 1fr;gap:6px}
+.seg button{font:inherit;font-size:14px;padding:8px 10px;border-radius:4px;border:1px solid var(--line);background:none;color:var(--mut);cursor:pointer;text-align:left}
+.seg button:hover{color:var(--txt);border-color:var(--mut)}.seg button.on{background:var(--raise);color:var(--txt);border-color:var(--txt)}
+.layer{display:grid;grid-template-columns:auto 1fr auto;gap:10px;align-items:center;padding:7px 0;border-bottom:1px solid var(--line);font-size:14.5px;cursor:pointer}
+.layer input{accent-color:var(--water);width:16px;height:16px}.layer small{color:var(--dim)}.layer em{font-style:normal;color:var(--mut);font-size:13px}
+.meter{background:var(--page);border:1px solid var(--line);border-radius:6px;padding:14px;margin-top:4px}
+.meter .big{font-size:34px;font-weight:700;line-height:1.1}.meter .lbl{font-size:13.5px;color:var(--mut)}
+.mbar{height:10px;background:var(--raise);margin:10px 0 4px;position:relative}.mbar i{display:block;height:100%;transition:width .4s,background .4s}
+.mbar b{position:absolute;top:-4px;bottom:-4px;width:2px;background:var(--txt)}
+.zones{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:10px}.zones div{border:1px solid var(--line);border-radius:4px;padding:8px;font-size:13.5px}.zones b{display:block;font-size:17px}
+.overlay{position:absolute;left:14px;top:12px;font-size:13px;color:var(--mut);background:rgba(5,7,10,.7);padding:6px 10px;border-radius:4px;pointer-events:none}
+.loading{position:absolute;inset:0;display:grid;place-items:center;color:var(--mut);font-size:15px;text-align:center;padding:20px}
+.slider{width:100%;accent-color:var(--water)}
+.legend2{display:flex;gap:14px;font-size:13px;color:var(--mut);flex-wrap:wrap;margin-top:8px}.legend2 i{display:inline-block;width:9px;height:9px;border-radius:50%;margin-right:5px;vertical-align:middle}
+</style></head><body>
+<header class="top"><a class="brand" href="../">Lunar Habitat Engineering Portal<small>Project ARES · NASA HUNCH</small></a>
+<nav><a href="../#radiation">Radiation</a><a class="on" href="./">Cross-section viewer</a><a href="../fluids/">Fluid lab 3D</a><a href="../food/">Food 3D</a><a href="../simulator/">Simulator</a><a href="../#sites">Our websites</a></nav></header>
+<div class="app">
+  <div class="stage"><canvas id="c" aria-label="3D lunar habitat with radiation particles"></canvas>
+    <div class="overlay" id="ov">Drag to orbit · scroll to zoom</div>
+    <div class="loading" id="load">Loading the habitat model…</div></div>
+  <aside class="side" aria-label="Viewer controls">
+    <h3>Shielding</h3>
+    <div class="seg" id="preset"><button data-p="none">No shielding</button><button data-p="water">Water</button><button data-p="regolith">Regolith</button><button data-p="combined" class="on">Combined</button></div>
+    <div id="layers" style="margin-top:10px"></div>
+    <h3>Radiation source</h3>
+    <div class="seg" id="src"><button data-s="spe" class="on">Solar storm (SPE)</button><button data-s="gcr">Cosmic rays (GCR)</button></div>
+    <h3>Sun position <span class="tag" id="sunv"></span></h3><input class="slider" id="sun" type="range" min="5" max="175" value="55" aria-label="Sun position">
+    <h3>View</h3>
+    <div class="seg"><button id="cut" class="on" type="button">Cross-section</button><button id="heat" class="on" type="button">Dose heat map</button></div>
+    <h3>Live dose meter</h3>
+    <div class="meter" aria-live="polite"><div class="lbl" id="mlbl"></div><div class="big" id="mval"></div><div class="mbar"><i id="mfill"></i><b id="mlim"></b></div><div class="lbl" id="mnote"></div>
+      <div class="zones"><div>Work area<b id="zw"></b></div><div>Storm shelter<b id="zs"></b></div></div></div>
+    <div class="legend2"><span><i style="background:#ff7a2f"></i>incoming particle</span><span><i style="background:#ffd34d"></i>secondary particle</span><span><i style="background:#4fb3d9"></i>absorbed</span><span><i style="background:#ff3b3b"></i>reached crew</span></div>
+    <p class="fact" id="explain" style="margin-top:12px"></p>
+    <p class="src" style="margin-top:10px">Dose model: lunar surface 1,369 µSv/day (Chang'e 4). Solar storm attenuation fitted to Geant4 results for regolith (Matthiä &amp; Berger 2024: &gt;4 g/cm² keeps a large event under the 30-day limit, &gt;10 g/cm² halves it again). Cosmic-ray reduction capped near 25-35%, matching the same study (180 g/cm² of regolith cut dose only ~25%). Simplified for teaching; not a transport code.</p>
+  </aside>
+</div>
+<script type="importmap">{"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.165.0/build/three.module.js","three/addons/":"https://cdn.jsdelivr.net/npm/three@0.165.0/examples/jsm/"}}</script>
+<script type="module">
+import * as THREE from 'three';
+import {GLTFLoader} from 'three/addons/loaders/GLTFLoader.js';
+import {OrbitControls} from 'three/addons/controls/OrbitControls.js';
+import {RoomEnvironment} from 'three/addons/environments/RoomEnvironment.js';
+const $=s=>document.querySelector(s);
+// ---------------------------------------------------------------- dose model (see sources in the panel)
+const LAYERS=[ // id, label, areal g/cm2, hydrogen-rich?
+  ['shell','Aluminium pressure shell (always on)',1.35,false],['poly','Polyethylene liner, 10 cm',9.5,true],
+  ['water','Water jacket, 20 cm',20,true],['regolith','Regolith berm, 1 m',150,false],['shelter','Storm shelter water walls, 15 cm',15,true]];
+const on={shell:true,poly:true,water:true,regolith:true,shelter:true};
+let source='spe';
+const GCR_FREE=1.369;            // mSv/day on the lunar surface (Chang'e 4 LND)
+const SPE_D0=397;                // mSv for a large event with no shielding (fit: 250 mSv at 4 g/cm2, 125 at 10 g/cm2)
+const SPE_LIMIT=250;             // NASA per-event limit (NASA-STD-3001)
+function areal(inShelter){ let H=0,R=0; for(const [id,,a,h] of LAYERS){ if(!on[id]) continue; if(id==='shelter'&&!inShelter) continue; h?H+=a:R+=a; } return {H,R}; }
+function dose(inShelter){ const {H,R}=areal(inShelter);
+  if(source==='spe') return SPE_D0*Math.exp(-R/8.66 - H/11);                 // hydrogen-rich layers ~25% better per g/cm2
+  const red=Math.min(0.35, 0.18*(1-Math.exp(-H/12)) + 0.25*(1-Math.exp(-R/70)));
+  return GCR_FREE*(1-red); }
+// ---------------------------------------------------------------- three.js scene
+const canvas=$('#c'), renderer=new THREE.WebGLRenderer({canvas,antialias:true});
+renderer.setPixelRatio(Math.min(devicePixelRatio,2)); renderer.localClippingEnabled=true; renderer.toneMapping=THREE.ACESFilmicToneMapping; renderer.toneMappingExposure=0.9;
+const scene=new THREE.Scene(); scene.background=new THREE.Color(0x05070a);
+scene.environment=new THREE.PMREMGenerator(renderer).fromScene(new RoomEnvironment(),0.04).texture;
+const camera=new THREE.PerspectiveCamera(38,1,0.1,400); camera.position.set(9,7,15);
+const controls=new OrbitControls(camera,canvas); controls.target.set(0,2.4,0); controls.enableDamping=true; controls.maxPolarAngle=Math.PI*0.49; controls.minDistance=5; controls.maxDistance=45;
+const sunLight=new THREE.DirectionalLight(0xffffff,2.6); scene.add(sunLight); scene.add(new THREE.AmbientLight(0x8899aa,0.25));
+// stars + sun disc
+{ const g=new THREE.BufferGeometry(), p=[]; for(let i=0;i<1500;i++){ const t=Math.random()*Math.PI*2, u=Math.random()*0.95+0.05, r=180; p.push(r*Math.sqrt(1-u*u)*Math.cos(t), r*u, r*Math.sqrt(1-u*u)*Math.sin(t)); }
+  g.setAttribute('position',new THREE.Float32BufferAttribute(p,3)); scene.add(new THREE.Points(g,new THREE.PointsMaterial({color:0xaab4c4,size:0.5,sizeAttenuation:true}))); }
+const sunDisc=new THREE.Mesh(new THREE.SphereGeometry(2.2,24,12),new THREE.MeshBasicMaterial({color:0xfff2c0})); scene.add(sunDisc);
+const clip=new THREE.Plane(new THREE.Vector3(0,0,-1),0); let cutOn=true, heatOn=true;
+const AX_Y=2.65; const R={shell:2.25,poly:2.35,water:2.55,regolith:3.6,shelterIn:0}; // radii from the Blender build script
+const parts={}; let crew=[], model=null;
+new GLTFLoader().load('../models/radiation_module.glb', g=>{ model=g.scene; scene.add(model);
+  model.traverse(o=>{ if(!o.isMesh) return; const ex=o.userData||{};
+    o.material=o.material.clone(); o.material.clippingPlanes=[]; o.material.side=THREE.DoubleSide;
+    if(ex.role==='layer'){ (parts[ex.layer]=parts[ex.layer]||[]).push(o); o.material.clippingPlanes=[clip]; }
+    if(ex.role==='crew'){ crew.push(o); }
+    if(ex.role==='structure'||ex.role==='monitor') o.material.clippingPlanes=[clip];
+    if(/Water|Shelter/.test(o.name)){ o.material.transparent=true; o.material.opacity=0.5; o.material.depthWrite=false; } });
+  $('#load').remove(); applyLayers(); },
+  undefined, e=>{ $('#load').textContent='The 3D model has not been built yet (radiation_module.glb). The dose meter still works.'; });
+function resize(){ const r=canvas.parentElement.getBoundingClientRect(); renderer.setSize(r.width,r.height,false); camera.aspect=r.width/r.height; camera.updateProjectionMatrix(); }
+addEventListener('resize',resize); resize();
+// ---------------------------------------------------------------- particles
+const N=700, pos=new Float32Array(N*3), col=new Float32Array(N*3), P=[];
+const pg=new THREE.BufferGeometry(); pg.setAttribute('position',new THREE.BufferAttribute(pos,3)); pg.setAttribute('color',new THREE.BufferAttribute(col,3));
+const pts=new THREE.Points(pg,new THREE.PointsMaterial({size:0.16,vertexColors:true,transparent:true,opacity:0.95,depthWrite:false,blending:THREE.AdditiveBlending})); scene.add(pts);
+const C={inc:new THREE.Color(0xff7a2f),sec:new THREE.Color(0xffd34d),abs:new THREE.Color(0x4fb3d9),hit:new THREE.Color(0xff3b3b)};
+for(let i=0;i<N;i++) P.push({a:false});
+let sunDir=new THREE.Vector3(); let hits=0, hitWindow=[];
+const radial=p=>Math.hypot(p.y-AX_Y,p.z);
+const layerOrder=[['regolith',R.regolith,150,false],['water',R.water,20,true],['poly',R.poly,9.5,true],['shell',R.shell,1.35,false]];
+function passProb(areal,h){ return source==='spe'? Math.exp(-areal/(h?11:8.66)) : 0.985; }
+function spawn(p,secondary,from){
+  p.a=true; p.sec=!!secondary; p.state='fly'; p.t=0; p.crossed={};
+  if(secondary){ p.p=from.clone(); const d=new THREE.Vector3(Math.random()-0.5,Math.random()-0.6,Math.random()-0.5).normalize(); p.v=d.multiplyScalar(5+Math.random()*3); return; }
+  const target=new THREE.Vector3((Math.random()-0.5)*9, AX_Y+(Math.random()-0.5)*2.2, (Math.random()-0.5)*3);
+  let dir;
+  if(source==='spe') dir=sunDir.clone().add(new THREE.Vector3((Math.random()-0.5)*0.25,(Math.random()-0.5)*0.25,(Math.random()-0.5)*0.25)).normalize();
+  else { dir=new THREE.Vector3(Math.random()*2-1, Math.random()*0.95+0.05, Math.random()*2-1).normalize(); }   // the Moon blocks the lower half of the sky
+  p.p=target.clone().add(dir.multiplyScalar(26)); p.v=target.clone().sub(p.p).normalize().multiplyScalar(source==='spe'?11:16); }
+let acc=0;
+function stepParticles(dt){
+  acc+=dt*(source==='spe'?90:55); while(acc>1){ acc--; const f=P.find(q=>!q.a); if(f) spawn(f,false); }
+  P.forEach((p,i)=>{ let c=C.inc;
+    if(p.a){ if(p.state==='fly'){ const r0=radial(p.p); p.p.addScaledVector(p.v,dt); const r1=radial(p.p);
+          if(p.p.y<0){ p.state='done'; p.t=0; }
+          for(const [id,rad,a,h] of layerOrder){ if(r0>rad && r1<=rad && !p.crossed[id] && on[id] && (!parts[id]||parts[id].length)){ p.crossed[id]=1;
+              if(Math.random()>passProb(a,h)){ p.state='abs'; p.t=0; break; }
+              if(source==='gcr' && !p.sec && Math.random()<0.35){ for(let k=0;k<2;k++){ const f=P.find(q=>!q.a); if(f) spawn(f,true,p.p); } } } }
+          if(p.state==='fly' && r1<2.2 && Math.abs(p.p.x)<5){ p.state='hit'; p.t=0; hitWindow.push(performance.now()); }
+          if(p.p.length()>60) p.a=false;
+          c=p.sec?C.sec:C.inc; }
+        else { p.t+=dt; c=p.state==='abs'?C.abs:p.state==='hit'?C.hit:C.inc; if(p.t>0.6) p.a=false; }
+      pos[i*3]=p.p.x; pos[i*3+1]=p.p.y; pos[i*3+2]=p.p.z; }
+    else { pos[i*3]=0; pos[i*3+1]=-999; pos[i*3+2]=0; }
+    col[i*3]=c.r; col[i*3+1]=c.g; col[i*3+2]=c.b; });
+  pg.attributes.position.needsUpdate=true; pg.attributes.color.needsUpdate=true; }
+// ---------------------------------------------------------------- UI
+$('#layers').innerHTML=LAYERS.map(([id,l,a])=>`<label class="layer"><input type="checkbox" data-l="${id}" ${id==='shell'?'checked disabled':'checked'}><span>${l}</span><em>${a} g/cm²</em></label>`).join('');
+document.querySelectorAll('[data-l]').forEach(x=>x.onchange=()=>{ on[x.dataset.l]=x.checked; document.querySelectorAll('#preset button').forEach(b=>b.classList.remove('on')); applyLayers(); });
+const PRESET={none:{poly:0,water:0,regolith:0,shelter:0},water:{poly:0,water:1,regolith:0,shelter:1},regolith:{poly:0,water:0,regolith:1,shelter:0},combined:{poly:1,water:1,regolith:1,shelter:1}};
+document.querySelectorAll('#preset button').forEach(b=>b.onclick=()=>{ Object.assign(on,Object.fromEntries(Object.entries(PRESET[b.dataset.p]).map(([k,v])=>[k,!!v]))); document.querySelectorAll('[data-l]').forEach(x=>x.checked=on[x.dataset.l]); document.querySelectorAll('#preset button').forEach(q=>q.classList.toggle('on',q===b)); applyLayers(); });
+document.querySelectorAll('#src button').forEach(b=>b.onclick=()=>{ source=b.dataset.s; document.querySelectorAll('#src button').forEach(q=>q.classList.toggle('on',q===b)); P.forEach(p=>p.a=false); applyLayers(); });
+$('#cut').onclick=()=>{ cutOn=!cutOn; $('#cut').classList.toggle('on',cutOn); clip.constant=cutOn?0:1e4; };
+$('#heat').onclick=()=>{ heatOn=!heatOn; $('#heat').classList.toggle('on',heatOn); applyLayers(); };
+function sunUpdate(){ const a=+$('#sun').value*Math.PI/180; sunDir.set(Math.cos(a),Math.sin(a)*0.75+0.12,0.45).normalize(); sunDisc.position.copy(sunDir).multiplyScalar(120); sunLight.position.copy(sunDir).multiplyScalar(30); $('#sunv').textContent=Math.round(+$('#sun').value)+'°'; }
+$('#sun').oninput=sunUpdate; sunUpdate();
+const fmt=(v,d=0)=>(+v).toLocaleString('en-US',{maximumFractionDigits:d,minimumFractionDigits:d});
+function zoneColor(f){ return f<0.5?new THREE.Color(0x3fb950):f<1?new THREE.Color(0xe3a92b):new THREE.Color(0xe5484d); }
+function applyLayers(){
+  for(const id in parts) parts[id].forEach(o=>o.visible=on[id]);
+  const dw=dose(false), ds=dose(true);
+  if(source==='spe'){ $('#mlbl').textContent='Dose from one large solar storm, work area'; $('#mval').textContent=fmt(dw)+' mSv';
+    $('#mfill').style.width=Math.min(100,dw/SPE_D0*100)+'%'; $('#mfill').style.background=dw>SPE_LIMIT?'var(--warn)':dw>SPE_LIMIT/2?'var(--caut)':'var(--ok)'; $('#mlim').style.left=(SPE_LIMIT/SPE_D0*100)+'%';
+    $('#mnote').textContent=`Line marks NASA's limit of ${SPE_LIMIT} mSv per event.`;
+    $('#zw').textContent=fmt(dw)+' mSv'; $('#zs').textContent=fmt(ds)+' mSv';
+    $('#explain').textContent=dw>SPE_LIMIT?'Without enough shielding a single big solar storm would exceed the limit. Watch most protons pass straight through.':`Solar storm protons are fairly low energy, so ${on.water||on.regolith?'these layers stop most of them':'even thin layers help'}. That is why a storm shelter works: crew get inside and wait out the event, usually hours.`; }
+  else { $('#mlbl').textContent='Cosmic ray dose rate, work area'; $('#mval').textContent=fmt(dw,2)+' mSv/day';
+    $('#mfill').style.width=Math.min(100,dw/GCR_FREE*100)+'%'; $('#mfill').style.background=dw*365>600?'var(--warn)':'var(--caut)'; $('#mlim').style.left='100%';
+    $('#mnote').textContent=`${fmt(dw*365)} mSv a year: NASA's career limit of 600 mSv is reached in about ${fmt(600/dw)} days.`;
+    $('#zw').textContent=fmt(dw,2)+' /day'; $('#zs').textContent=fmt(ds,2)+' /day';
+    $('#explain').textContent='Cosmic rays are so energetic that shielding only trims them, and each hit can spray secondary particles (yellow). Even 1 m of regolith cuts the dose by only about a quarter, so mission length, not wall thickness, controls cosmic ray dose.'; }
+  crew.forEach(o=>{ const sh=o.userData.zone==='shelter', d=dose(sh), f=source==='spe'?d/SPE_LIMIT:d/GCR_FREE*0.9;
+    o.material.color.copy(heatOn?zoneColor(f):new THREE.Color(0xe6e6ea)); o.material.emissive=heatOn?zoneColor(f).multiplyScalar(0.35):new THREE.Color(0); });
+}
+applyLayers();
+let last=performance.now();
+(function loop(now){ const dt=Math.min(0.05,(now-last)/1000); last=now; controls.update(); stepParticles(dt);
+  const t=performance.now(); hitWindow=hitWindow.filter(x=>t-x<2000); $('#ov').textContent=`Drag to orbit · ${hitWindow.length/2} particles/s reaching the crew zone`;
+  renderer.render(scene,camera); requestAnimationFrame(loop); })(last);
+</script>
+</body></html>

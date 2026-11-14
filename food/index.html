@@ -1,0 +1,106 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Food Production 3D · Lunar Habitat Engineering Portal</title>
+<meta name="description" content="3D aquaponics and hydroponics greenhouses for a lunar habitat: fish, water circulation, nutrient flow and harvest cycles, with food, protein and water outputs.">
+<meta property="og:title" content="Lunar Food Production 3D"><meta property="og:description" content="Aquaponics next to hydroponics, in 3D, with calories, protein and water use.">
+<meta property="og:image" content="https://jaigod.github.io/lunar-habitat-engineering/img/food.jpg"><meta name="twitter:card" content="summary_large_image">
+<link rel="icon" href="../favicon.svg">
+<link href="https://fonts.googleapis.com/css2?family=Public+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../style.css">
+<style>
+.app{display:grid;grid-template-columns:minmax(0,1fr) 360px;height:calc(100vh - 66px);min-height:620px}
+@media(max-width:980px){.app{grid-template-columns:1fr;height:auto}}
+.stage{position:relative;background:#05070a;min-height:420px}@media(max-width:980px){.stage{height:60vh}}
+#c{position:absolute;inset:0;width:100%;height:100%;display:block;touch-action:none}
+.side{border-left:1px solid var(--line);background:var(--panel);overflow:auto;padding:18px}@media(max-width:980px){.side{border-left:0;border-top:1px solid var(--line)}}
+.side h3{font-size:15px;margin:16px 0 6px}.side h3:first-child{margin-top:0}
+.ctl label{display:flex;justify-content:space-between;font-size:14.5px}.ctl label b{font-weight:600}.ctl input{width:100%;accent-color:var(--water);margin:4px 0 10px}
+.cols{display:grid;grid-template-columns:1fr 1fr;gap:10px}.cols h4{font-size:14px;margin-bottom:4px;display:flex;gap:6px;align-items:center}.cols h4 i{width:9px;height:9px;border-radius:2px;display:inline-block}
+.kv{font-size:13.5px}.kv div{display:flex;justify-content:space-between;border-bottom:1px solid var(--line);padding:5px 0}.kv span{color:var(--mut)}.kv b{font-weight:600}
+.overlay{position:absolute;left:14px;top:12px;font-size:13px;color:var(--mut);background:rgba(5,7,10,.7);padding:6px 10px;border-radius:4px;pointer-events:none}
+.loading{position:absolute;inset:0;display:grid;place-items:center;color:var(--mut);font-size:15px;text-align:center;padding:20px}
+.labels{position:absolute;inset:0;pointer-events:none}.labels div{position:absolute;transform:translate(-50%,-100%);font-size:12.5px;color:var(--txt);background:rgba(20,26,33,.85);border:1px solid var(--line);padding:2px 7px;border-radius:3px;white-space:nowrap}
+</style></head><body>
+<header class="top"><a class="brand" href="../">Lunar Habitat Engineering Portal<small>Project ARES · NASA HUNCH</small></a>
+<nav><a href="../#food">Food</a><a href="../radiation/">Radiation 3D</a><a href="../fluids/">Fluid lab 3D</a><a class="on" href="./">Food 3D</a><a href="../simulator/">Simulator</a><a href="../#sites">Our websites</a></nav></header>
+<div class="app">
+  <div class="stage"><canvas id="c" aria-label="3D aquaponics and hydroponics greenhouses"></canvas><div class="labels" id="labels"></div>
+    <div class="overlay" id="ov">Drag to orbit</div><div class="loading" id="load">Loading the greenhouse model…</div></div>
+  <aside class="side">
+    <h3>Greenhouse</h3>
+    <div class="ctl"><label for="crew">Crew <b id="vcrew"></b></label><input id="crew" type="range" min="1" max="8" value="4"></div>
+    <div class="ctl"><label for="area">Grow area per system <b id="varea"></b></label><input id="area" type="range" min="10" max="200" step="5" value="60"></div>
+    <div class="ctl"><label for="fish">Fish stock (aquaponics) <b id="vfish"></b></label><input id="fish" type="range" min="0" max="400" step="10" value="120"></div>
+    <div class="ctl"><label for="speed">Time speed <b id="vspeed"></b></label><input id="speed" type="range" min="0" max="10" value="4"></div>
+    <h3>Harvest cycle <span class="tag" id="day"></span></h3>
+    <p class="fact">Lettuce goes from seedling to harvest in about 30 days (NASA Biomass Production Chamber). Beds are staggered so one is always ready.</p>
+    <h3>Per day</h3>
+    <div class="cols"><div><h4><i style="background:var(--fish)"></i>Aquaponics</h4><div class="kv" id="ka"></div></div><div><h4><i style="background:var(--plant)"></i>Hydroponics</h4><div class="kv" id="kh"></div></div></div>
+    <p class="fact" id="explain" style="margin-top:12px"></p>
+    <p style="margin-top:12px"><a class="btn ghost" id="toSim" href="../simulator/">Full simulator with sources</a></p>
+  </aside>
+</div>
+<script type="importmap">{"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.165.0/build/three.module.js","three/addons/":"https://cdn.jsdelivr.net/npm/three@0.165.0/examples/jsm/"}}</script>
+<script type="module">
+import * as THREE from 'three';
+import {GLTFLoader} from 'three/addons/loaders/GLTFLoader.js';
+import {OrbitControls} from 'three/addons/controls/OrbitControls.js';
+import {RoomEnvironment} from 'three/addons/environments/RoomEnvironment.js';
+const $=s=>document.querySelector(s), fmt=(v,d=0)=>(+v).toLocaleString('en-US',{maximumFractionDigits:d,minimumFractionDigits:d});
+// ---------------------------------------------------------------- same model as the simulator (mixed diet, thin-film beds)
+const MIX=[[18.4,0.44,3.73,0.10,0.4],[11.3,0.17,3.6,0.14,0.3],[6.0,0.16,4.5,0.40,0.2],[7.1,0.42,2.3,0.25,0.1]]; // prod, rue, kcal/g, protein, share
+function sys(area,fish,crew){ let kcal=0,prot=0,mol=0; for(const [pr,rue,kc,pt,sh] of MIX){ const g=area*sh*pr; kcal+=g*kc; prot+=g*pt; mol+=g/rue; }
+  const feed=fish*20, growth=feed/1.7, fp=growth*0.33*0.2, fk=growth*0.33*1.3, tank=fish/60;
+  const kw=mol/2.7e-6/86400/1000 + (area*2 + tank*50)/1000, water=area*0.02+tank;
+  return {kcal:kcal+fk, prot:prot+fp, fishProt:fp, kw, water, feed:feed/1000, needK:crew*2500, needP:crew*80}; }
+function kv(m){ return [['Calories',`${fmt(m.kcal)} kcal`],['of crew need',`${fmt(m.kcal/m.needK*100)}%`],['Protein',`${fmt(m.prot)} g`],['of crew need',`${fmt(m.prot/m.needP*100)}%`],['Water in system',`${fmt(m.water,1)} m³`],['Power',`${fmt(m.kw,1)} kW`],['Feed shipped',`${fmt(m.feed,1)} kg`]].map(([a,b])=>`<div><span>${a}</span><b>${b}</b></div>`).join(''); }
+function ui(){ const crew=+$('#crew').value, area=+$('#area').value, fish=+$('#fish').value;
+  $('#vcrew').textContent=crew; $('#varea').textContent=area+' m²'; $('#vfish').textContent=fish+' kg'; $('#vspeed').textContent=$('#speed').value==='0'?'paused':$('#speed').value+' days/min';
+  const a=sys(area,fish,crew), h=sys(area,0,crew); $('#ka').innerHTML=kv(a); $('#kh').innerHTML=kv(h);
+  $('#explain').textContent=`Fish add ${fmt(a.fishProt)} g of protein a day here, but need ${fmt(a.feed,1)} kg of feed and ${fmt(a.water-h.water,1)} m³ more water. Plants in both systems need grow lights: ${fmt(h.kw,1)} kW for ${area} m².`;
+  $('#toSim').href=`../simulator/?crew=${crew}&area=${area}&fish=${fish}&days=365&water=15&crop=mix&bed=nft`; fishTarget=Math.round(Math.min(40,fish/10)); }
+let fishTarget=12; document.querySelectorAll('input').forEach(i=>i.addEventListener('input',ui));
+// ---------------------------------------------------------------- scene
+const canvas=$('#c'), renderer=new THREE.WebGLRenderer({canvas,antialias:true}); renderer.setPixelRatio(Math.min(devicePixelRatio,2)); renderer.toneMapping=THREE.ACESFilmicToneMapping;
+const scene=new THREE.Scene(); scene.background=new THREE.Color(0x0b0f14); scene.environment=new THREE.PMREMGenerator(renderer).fromScene(new RoomEnvironment(),0.04).texture;
+const camera=new THREE.PerspectiveCamera(40,1,0.1,200); camera.position.set(4,9,12);
+const controls=new OrbitControls(camera,canvas); controls.target.set(0,0.6,0); controls.enableDamping=true; controls.maxPolarAngle=Math.PI*0.49;
+scene.add(new THREE.DirectionalLight(0xffffff,1.5).translateY(10)); scene.add(new THREE.AmbientLight(0x8899aa,0.4));
+const plants=[], pipes=[], tanks=[], labels=[]; let fishTpl=null;
+const toThree=([x,y,z])=>new THREE.Vector3(x,z,-y);
+new GLTFLoader().load('../models/food_module.glb', g=>{ scene.add(g.scene);
+  g.scene.traverse(o=>{ if(!o.isMesh) return; const ex=o.userData||{}; o.material=o.material.clone();
+    if(ex.role==='plant'){ const m=o.name.match(/_(\d+)_/); o.userData.bed=m?+m[1]:1; o.geometry.computeBoundingBox(); const c=o.geometry.boundingBox.getCenter(new THREE.Vector3()); o.geometry.translate(-c.x,-c.y,-c.z); o.position.add(c); plants.push(o); }
+    if(ex.role==='pipe'&&ex.path) pipes.push({curve:new THREE.CatmullRomCurve3(JSON.parse(ex.path).map(toThree),false,'catmullrom',0.05),loop:ex.loop,name:o.name});
+    if(ex.role==='fish_tank') tanks.push(o);
+    if(ex.role==='fish_template'){ fishTpl=o; o.visible=false; }
+    if(/Water|Raft_Bed/.test(o.name)){ o.material.transparent=true; o.material.opacity=0.5; o.material.depthWrite=false; }
+    if(/Biofilter|Nutrient_Tank|Sump/.test(o.name)) labels.push([o,o.name.replace(/_/g,' ').replace(/^(Aqua|Hydro) /,'')]);
+    if(/Fish_Tank_1$/.test(o.name)) labels.push([o,'Fish tanks']); if(/Raft_Bed_2$/.test(o.name)) labels.push([o,'Raft beds (aquaponics)']); if(/NFT_Rack_2$/.test(o.name)) labels.push([o,'Thin-film racks (hydroponics)']); });
+  $('#labels').innerHTML=labels.map((_,i)=>`<div id="lb${i}"></div>`).join(''); labels.forEach(([o,t],i)=>$('#lb'+i).textContent=t);
+  $('#load').remove(); buildFlow(); }, undefined, ()=>{ $('#load').textContent='The 3D model has not been built yet (food_module.glb). The numbers still work.'; });
+function resize(){ const r=canvas.parentElement.getBoundingClientRect(); renderer.setSize(r.width,r.height,false); camera.aspect=r.width/r.height; camera.updateProjectionMatrix(); } addEventListener('resize',resize); resize();
+// water (blue) and nutrients (green) moving round each loop
+let flow=null, fd=[];
+function buildFlow(){ pipes.forEach((p,pi)=>{ for(let k=0;k<40;k++) fd.push({pi,u:Math.random(),nut:p.loop==='aquaponics'?/Filter_to_Beds/.test(p.name):/Supply/.test(p.name)}); });
+  const g=new THREE.BufferGeometry(); g.setAttribute('position',new THREE.BufferAttribute(new Float32Array(fd.length*3),3)); g.setAttribute('color',new THREE.BufferAttribute(new Float32Array(fd.length*3),3));
+  flow=new THREE.Points(g,new THREE.PointsMaterial({size:0.08,vertexColors:true,transparent:true,depthWrite:false,blending:THREE.AdditiveBlending})); scene.add(flow); }
+// fish: instances swimming in circles inside the tanks
+const fishes=[]; function syncFish(){ if(!fishTpl||!tanks.length) return; while(fishes.length<fishTarget){ const f=fishTpl.clone(); f.visible=true; f.material=fishTpl.material; scene.add(f); fishes.push({o:f,tank:fishes.length%tanks.length,a:Math.random()*6.28,r:0.25+Math.random()*0.4,h:0.25+Math.random()*0.55,s:0.5+Math.random()*0.5}); }
+  while(fishes.length>fishTarget){ scene.remove(fishes.pop().o); } }
+ui();
+const vt=new THREE.Vector3(), cW=new THREE.Color(0x4fb3d9), cN=new THREE.Color(0x7cc46a);
+let last=performance.now(), day=0;
+(function loop(now){ const dt=Math.min(0.05,(now-last)/1000); last=now; controls.update(); const sp=+$('#speed').value;
+  day=(day+dt*sp/60)%30; $('#day').textContent=`day ${Math.floor(day)+1} of 30`;
+  plants.forEach(o=>{ const d=(day + (o.userData.bed-1)*10)%30, s=0.15+0.85*Math.min(1,d/26); o.scale.setScalar(s); });   // staggered beds
+  if(flow){ const P=flow.geometry.attributes.position.array, C=flow.geometry.attributes.color.array;
+    fd.forEach((f,i)=>{ const p=pipes[f.pi]; f.u=(f.u+dt*0.12)%1; p.curve.getPointAt(f.u,vt); P[i*3]=vt.x; P[i*3+1]=vt.y; P[i*3+2]=vt.z; const c=f.nut?cN:cW; C[i*3]=c.r; C[i*3+1]=c.g; C[i*3+2]=c.b; });
+    flow.geometry.attributes.position.needsUpdate=true; flow.geometry.attributes.color.needsUpdate=true; }
+  syncFish(); fishes.forEach(f=>{ const t=tanks[f.tank]; if(!t) return; const c=new THREE.Box3().setFromObject(t).getCenter(vt.clone()); f.a+=dt*f.s*0.8;
+    f.o.position.set(c.x+Math.cos(f.a)*f.r, 0.15+f.h, c.z+Math.sin(f.a)*f.r); f.o.rotation.set(0,-f.a,0); });
+  labels.forEach(([o],i)=>{ const el=$('#lb'+i); if(!el) return; const p=new THREE.Box3().setFromObject(o); const v=new THREE.Vector3((p.min.x+p.max.x)/2,p.max.y+0.25,(p.min.z+p.max.z)/2).project(camera);
+    el.style.left=((v.x+1)/2*canvas.clientWidth)+'px'; el.style.top=((1-v.y)/2*canvas.clientHeight)+'px'; el.style.display=v.z<1?'':'none'; });
+  renderer.render(scene,camera); requestAnimationFrame(loop); })(last);
+</script>
+</body></html>
