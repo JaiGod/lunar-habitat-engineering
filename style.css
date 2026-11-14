@@ -1,0 +1,39 @@
+/* Lunar Habitat Engineering Portal - shared styles.
+   Flat engineering-report look, same family as SELENE: slate panels, one water-blue accent,
+   colour reserved for meaning (green = meets need, amber = marginal, red = fails). */
+:root{--page:#141a21;--panel:#1c232c;--raise:#252f3a;--line:#2e3843;--txt:#e2e8ee;--mut:#93a0ad;--dim:#66737f;
+  --water:#4fb3d9;--ok:#3fb950;--caut:#e3a92b;--warn:#e5484d;--fish:#e38b4f;--plant:#7cc46a}
+*{box-sizing:border-box;margin:0}[hidden]{display:none!important}
+html{background:var(--page);scroll-behavior:smooth}
+@media (prefers-reduced-motion:reduce){html{scroll-behavior:auto}}
+body{color:var(--txt);font:16px/1.6 'Public Sans',system-ui,sans-serif;font-variant-numeric:tabular-nums}
+a{color:var(--water)}a:hover{color:#8fd3ef}
+:focus-visible{outline:2px solid var(--water);outline-offset:2px}
+.top{display:flex;align-items:center;gap:24px;padding:12px 28px;border-bottom:1px solid var(--line);background:var(--panel);position:sticky;top:0;z-index:20;flex-wrap:wrap}
+.top .brand{font-weight:700;font-size:18px;color:var(--txt);text-decoration:none}.top .brand small{display:block;font-weight:400;font-size:13px;color:var(--mut)}
+.top nav{display:flex;gap:18px;font-size:14.5px;flex-wrap:wrap;margin-left:auto}.top nav a{color:var(--mut);text-decoration:none}.top nav a:hover,.top nav a.on{color:var(--txt)}
+.wrap{max-width:1180px;margin:0 auto;padding:0 28px}
+@media(max-width:640px){.wrap{padding:0 16px}.top{padding:10px 16px}}
+h1{font-size:44px;line-height:1.1;font-weight:700;letter-spacing:-.01em}
+h2{font-size:30px;line-height:1.2;font-weight:700;margin-bottom:8px}
+h3{font-size:19px;font-weight:600;margin-bottom:6px}
+.lead{font-size:18px;color:var(--mut);max-width:64ch}
+section.sec{padding:64px 0;border-top:1px solid var(--line)}
+.panel{background:var(--panel);border:1px solid var(--line);border-radius:6px;padding:20px}
+.grid2{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px}
+.grid3{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:16px}
+@media(max-width:900px){.grid3{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media(max-width:640px){.grid2,.grid3{grid-template-columns:1fr}h1{font-size:34px}}
+.fact{font-size:15px;color:var(--mut)}.fact b{color:var(--txt);font-weight:600}
+.fail{margin-top:10px;font-size:14px;color:var(--mut);border-left:3px solid var(--caut);padding-left:10px}
+.fail b{color:var(--caut);font-weight:600}
+table{width:100%;border-collapse:collapse;font-size:15px}
+th{text-align:left;font-weight:500;color:var(--mut);padding:8px 10px;border-bottom:1px solid var(--line)}
+td{padding:9px 10px;border-bottom:1px solid var(--line);vertical-align:top}
+td.n,th.n{text-align:right}
+.src{font-size:12.5px;color:var(--dim)}.src a{color:var(--dim)}
+.tag{display:inline-block;font-size:12.5px;padding:1px 7px;border-radius:3px;background:var(--raise);color:var(--mut)}
+.tag.a{color:var(--caut)}
+.btn{display:inline-block;border:1px solid var(--txt);border-radius:4px;padding:9px 16px;font-weight:600;background:var(--txt);color:#12181e;text-decoration:none;font:inherit;cursor:pointer}
+.btn.ghost{background:none;color:var(--txt);border-color:var(--line)}.btn:hover{filter:brightness(1.08)}
+footer{border-top:1px solid var(--line);padding:28px 0 40px;color:var(--dim);font-size:13.5px}

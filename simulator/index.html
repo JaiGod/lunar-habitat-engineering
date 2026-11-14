@@ -1,0 +1,180 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Aquaponics vs Hydroponics Simulator: Lunar Habitat Engineering Portal</title>
+<meta name="description" content="Compare fish + plants against plants only for a lunar habitat: calories, protein, water, power, mass and imported feed, from NASA crop data and aquaponics research.">
+<meta property="og:title" content="Aquaponics vs Hydroponics Simulator"><meta property="og:description" content="Which food system works for a lunar crew? Change the crew, mission length, crop area and fish stock and see calories, protein, water, power and mass.">
+<meta property="og:image" content="https://jaigod.github.io/lunar-habitat-engineering/og.jpg"><meta name="twitter:card" content="summary_large_image">
+<link rel="icon" href="../favicon.svg">
+<link href="https://fonts.googleapis.com/css2?family=Public+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../style.css">
+<style>
+.layout{display:grid;grid-template-columns:340px minmax(0,1fr);gap:20px;align-items:start;padding:28px 0 60px}
+@media(max-width:960px){.layout{grid-template-columns:1fr}}
+.controls{position:sticky;top:76px}
+@media(max-width:960px){.controls{position:static}}
+.ctl{margin-bottom:16px}.ctl label{display:flex;justify-content:space-between;font-size:14.5px;margin-bottom:4px}.ctl label b{font-weight:600}
+.ctl input[type=range]{width:100%;accent-color:var(--water)}
+.ctl small{color:var(--dim);font-size:12.5px;display:block}
+select{width:100%;background:var(--page);border:1px solid var(--line);color:var(--txt);border-radius:4px;padding:7px 8px;font:inherit;font-size:14.5px}
+.vs{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px}
+@media(max-width:640px){.vs{grid-template-columns:1fr}}
+.sys h3{display:flex;align-items:center;gap:8px}.sys h3 i{width:10px;height:10px;border-radius:2px;display:inline-block}
+.row{display:grid;grid-template-columns:1fr auto;gap:8px;padding:7px 0;border-bottom:1px solid var(--line);font-size:15px}
+.row:last-child{border:0}.row span{color:var(--mut)}.row b{font-weight:600;text-align:right}
+.meter{height:6px;background:var(--raise);border-radius:1px;margin:2px 0 4px;grid-column:1/-1;overflow:hidden}.meter i{display:block;height:100%}
+.verdict{font-size:17px;line-height:1.6;max-width:72ch}
+.verdict b{font-weight:600}
+.balance{margin-top:10px;font-size:14.5px;padding:8px 12px;border-left:3px solid var(--line)}
+canvas{width:100%;height:260px;display:block}
+.legend{display:flex;gap:18px;font-size:13.5px;color:var(--mut);margin-top:6px}.legend i{display:inline-block;width:14px;height:3px;vertical-align:middle;margin-right:6px}
+</style></head><body>
+<header class="top"><a class="brand" href="../">Lunar Habitat Engineering Portal<small>Project ARES · NASA HUNCH</small></a>
+<nav><a href="../#water">Water</a><a href="../#fluids">Fluid dynamics</a><a href="../#radiation">Radiation</a><a href="../#food">Food</a><a class="on" href="./">Simulator</a><a href="../#sites">Our websites</a></nav></header>
+<main class="wrap">
+  <div style="padding:40px 0 0">
+    <h1>Aquaponics vs hydroponics</h1>
+    <p class="lead" style="margin-top:12px">Which food system makes more sense for a crew on the Moon? Set the mission on the left. Both systems get the same grow area; aquaponics adds fish. Every number comes from the assumptions table at the bottom, so you can check it.</p>
+  </div>
+  <div class="layout">
+    <aside class="panel controls" aria-label="Mission settings">
+      <h3>Mission</h3>
+      <div class="ctl"><label for="crew">Crew <b id="vcrew"></b></label><input id="crew" type="range" min="1" max="8" value="4"></div>
+      <div class="ctl"><label for="days">Mission length <b id="vdays"></b></label><input id="days" type="range" min="30" max="1095" step="5" value="365"></div>
+      <div class="ctl"><label for="water">Water available for food systems <b id="vwater"></b></label><input id="water" type="range" min="1" max="60" value="15"><small>Habitat water budget you can give to tanks and grow beds.</small></div>
+      <h3 style="margin-top:22px">Plants</h3>
+      <div class="ctl"><label for="area">Grow area <b id="varea"></b></label><input id="area" type="range" min="0" max="400" step="5" value="120"><small>NASA estimate for a full diet: about 50 m² per person.</small></div>
+      <div class="ctl"><label for="crop">Crops</label><select id="crop">
+        <option value="mix">Mixed diet (potato, wheat, soybean, lettuce)</option><option value="potato">Potato only</option><option value="wheat">Wheat only</option><option value="soybean">Soybean only</option><option value="lettuce">Lettuce only</option><option value="tomato">Tomato only</option></select></div>
+      <div class="ctl"><label for="bed">Grow bed</label><select id="bed"><option value="nft">Thin film (NFT), ~20 L of water per m²</option><option value="raft">Deep-water raft, ~300 L per m² (UVI design)</option></select></div>
+      <h3 style="margin-top:22px">Fish (aquaponics only)</h3>
+      <div class="ctl"><label for="fish">Fish stock <b id="vfish"></b></label><input id="fish" type="range" min="0" max="600" step="10" value="150"><small>Live tilapia in the tanks at any time.</small></div>
+      <button class="btn ghost" id="reset" type="button" style="width:100%;margin-top:6px">Reset to defaults</button>
+    </aside>
+    <div>
+      <div class="panel"><p class="verdict" id="verdict" aria-live="polite"></p></div>
+      <div class="vs" style="margin-top:16px">
+        <div class="panel sys"><h3><i style="background:var(--plant)"></i>Hydroponics only</h3><div id="hydro"></div></div>
+        <div class="panel sys"><h3><i style="background:var(--fish)"></i>Aquaponics (fish + plants)</h3><div id="aqua"></div><div class="balance" id="bal"></div></div>
+      </div>
+      <div class="panel" style="margin-top:16px"><h3>Calories produced over the mission</h3>
+        <canvas id="chart" width="1600" height="520" role="img" aria-label="Cumulative calories over the mission for both systems and the crew's need"></canvas>
+        <div class="legend"><span><i style="background:var(--plant)"></i>Hydroponics</span><span><i style="background:var(--fish)"></i>Aquaponics</span><span><i style="background:var(--mut)"></i>Crew need</span></div>
+        <p class="src" style="margin-top:6px">Crops start producing after their first harvest (lettuce ~30 days, potato ~100). Fish start after a ~180-day grow-out.</p></div>
+      <div class="panel" style="margin-top:16px"><h3>What can go wrong</h3><div class="grid2" style="margin-top:8px">
+        <div><b>Hydroponics</b><p class="fact">A pump or timer failure dries out thin-film roots within hours; a backup pump and a low-flow alarm are required. Nutrient salts must be shipped from Earth. A root disease can spread through the shared solution, so racks need to be isolatable.</p></div>
+        <div><b>Aquaponics</b><p class="fact">Fish depend on dissolved oxygen: an aeration failure can kill a whole tank in hours, far faster than plants suffer. Ammonia builds up if the biofilter stalls. Feed must be imported or grown. Nobody has raised fish for food in 1/6 g yet, so swimming, feeding and waste settling are open questions.</p></div></div></div>
+      <div class="panel" style="margin-top:16px"><h3>Assumptions and sources</h3>
+        <p class="fact" style="margin-bottom:8px">Values tagged <span class="tag a">our assumption</span> are engineering estimates you can argue with. Everything else comes from the linked source.</p>
+        <div style="overflow-x:auto"><table id="assump"></table></div></div>
+    </div>
+  </div>
+</main>
+<footer><div class="wrap">Lunar Habitat Engineering Portal · Project ARES, NASA HUNCH · Jaineil R. with Angel C. and Farhan K., 2026. A student design study: the model is simplified and not flight-qualified.</div></footer>
+<script>
+const $=s=>document.querySelector(s);
+// ---------------------------------------------------------------- data
+// Edible dry-mass productivity and edible radiation-use efficiency: NASA Biomass Production Chamber (Wheeler et al.).
+// kcal/g and protein fraction are approximate dry-weight values (USDA food composition); potato kcal from Tibbitts & Wheeler.
+const CROP={
+  potato:{name:'Potato',prod:18.4,rue:0.44,kcal:3.73,prot:0.10,first:100},
+  wheat:{name:'Wheat',prod:11.3,rue:0.17,kcal:3.6,prot:0.14,first:80},
+  soybean:{name:'Soybean',prod:6.0,rue:0.16,kcal:4.5,prot:0.40,first:95},
+  lettuce:{name:'Lettuce',prod:7.1,rue:0.42,kcal:2.3,prot:0.25,first:30},
+  tomato:{name:'Tomato',prod:9.8,rue:0.25,kcal:3.0,prot:0.15,first:90}};
+const MIX={potato:0.4,wheat:0.3,soybean:0.2,lettuce:0.1};
+const K={kcalNeed:2500, protNeed:80, foodKg:1.8,                     // per person per day
+  ledEff:2.7,                                                         // µmol per J (LED photon efficacy)
+  hydroPumpW:2, nutrientG:1.5, hardwareKgM2:25,                       // per m² of grow area
+  feedRate:0.02, fcr:1.7, filletYield:0.33, filletProt:0.20,          // tilapia
+  tankDensity:60, tankHwKgM3:100, fishPumpWm3:20, fishHeatWm3:30, fishFirst:180,
+  feedTarget:57, shieldKgM2:200, power:40};                           // g feed/m²/day; 20 cm water; 40 kW fission
+const BED={nft:20, raft:300};                                        // litres of water per m² of grow area
+const ASSUMP=[
+  ['Edible yield, g dry mass per m² per day','Potato 18.4, wheat 11.3, tomato 9.8, lettuce 7.1, soybean 6.0','NASA Biomass Production Chamber (Wheeler et al.)','https://www.bohrium.com/scholar/34865484/John_C._Sager'],
+  ['Light needed, g edible per mol of light','Potato 0.44, lettuce 0.42, tomato 0.25, wheat 0.17, soybean 0.16','NASA Biomass Production Chamber (Wheeler et al.)','https://www.bohrium.com/scholar/34865484/John_C._Sager'],
+  ['Days to first harvest','Lettuce ~30, wheat ~80, tomato ~90, soybean ~95, potato ~100','NASA BPC crop cycles: lettuce 28-30, wheat 64-86, soybean 90-97, potato 90-105 days','https://pherobase.com/literature/data/details/A/31998'],
+  ['Food energy per person','2,500 kcal per day; ~50 m² of crops provides it','NASA Life Support Baseline Values and Assumptions Document (BVAD)','https://ntrs.nasa.gov/api/citations/20210024855/downloads/BVAD_2.15.22-final.pdf'],
+  ['Energy and protein in crops (dry weight)','Potato 3.73 kcal/g; others ~2.3-4.5 kcal/g; protein 10-40%','Potato: Tibbitts & Wheeler; others approximate USDA values',null,1],
+  ['Protein need per person','80 g per day','',null,1],
+  ['Packaged food it replaces','1.8 kg per person per day','Roughly ISS food plus packaging',null,1],
+  ['Fish feed : plant area balance','57 g of feed per m² of grow area per day','University of the Virgin Islands (UVI) aquaponics, lettuce','https://gannat-aquaponics.blogspot.com/2013/01/a-commercial-scale-aquaponic-system.html'],
+  ['Feed conversion ratio (tilapia)','1.7 kg feed per kg of fish growth','UVI: Nile tilapia FCR 1.7','https://gannat-aquaponics.blogspot.com/2013/01/a-commercial-scale-aquaponic-system.html'],
+  ['Daily feeding rate','2% of fish body weight','Tilapia aquaponics study (Al-Tawaha et al., 2021)','https://yadda.icm.edu.pl/baztech/element/bwmeta1.element.baztech-29c722d2-7566-477d-a712-2b2ef4c58b46/c/2_Al_Tawaha_Effects_of_Fish_JEE_2021_1.pdf'],
+  ['Tank stocking density','60 kg of fish per m³','UVI: ~61.5 kg/m³ for Nile tilapia','https://gannat-aquaponics.blogspot.com/2013/01/a-commercial-scale-aquaponic-system.html'],
+  ['Fillet yield, fillet protein','33% of the fish; 20% protein','Typical tilapia values',null,1],
+  ['Grow-bed water','Thin film ~20 L/m²; deep-water raft ~300 L/m² (30 cm deep, UVI)','Raft depth from the UVI system; thin-film value ours','https://www.scribd.com/document/370563886/Tilapia-and-Basil-pdf',1],
+  ['LED efficiency','2.7 µmol of light per joule','Current horticultural LEDs',null,1],
+  ['Pumps, aeration, tank heating','Grow beds 2 W/m²; fish tanks 20 W/m³ pumps + 30 W/m³ heat (tilapia need 26-30 °C)','',null,1],
+  ['Hardware mass','25 kg per m² of grow area; 100 kg per m³ of tank','',null,1],
+  ['Water as shielding','20 cm of water = 200 kg per m² of shelter wall','Our storm-shelter design target',null,1],
+  ['Power available','40 kW','NASA Fission Surface Power target, used across our habitat design',null,1]];
+// ---------------------------------------------------------------- model
+function crops(key){ return key==='mix'? Object.entries(MIX).map(([k,f])=>[CROP[k],f]) : [[CROP[key],1]]; }
+function model(p, withFish){
+  const cs=crops(p.crop); let gDM=0,kcal=0,prot=0,mol=0;
+  for(const [c,f] of cs){ const a=p.area*f, g=a*c.prod; gDM+=g; kcal+=g*c.kcal; prot+=g*c.prot; mol+=g/c.rue; }
+  const fish=withFish?p.fish:0, feed=fish*1000*K.feedRate;                        // g feed per day
+  const growth=feed/K.fcr, fishProt=growth*K.filletYield*K.filletProt, fishKcal=growth*K.filletYield*1.3; // tilapia fillet ~1.3 kcal/g
+  const tank=fish/K.tankDensity;                                                    // m³
+  const water=p.area*BED[p.bed]/1000 + tank;                                         // m³
+  const ledKW=mol/(K.ledEff*1e-6)/86400/1000, pumpKW=(p.area*K.hydroPumpW + tank*(K.fishPumpWm3+K.fishHeatWm3))/1000;
+  const kw=ledKW+pumpKW;
+  const massT=(p.area*K.hardwareKgM2 + water*1000 + tank*K.tankHwKgM3 + fish)/1000;
+  const nutrientsKg=(withFish? Math.max(0,p.area*K.nutrientG - feed*0.05) : p.area*K.nutrientG)/1000; // fish waste replaces some salts
+  const feedKg=feed/1000;
+  const firstCrop=Math.min(...cs.map(([c])=>c.first)), needK=p.crew*K.kcalNeed, needP=p.crew*K.protNeed;
+  // cumulative production with harvest delays
+  const curve=[]; let cum=0;
+  for(let d=0; d<=p.days; d++){ let k=0; for(const [c,f] of cs) if(d>=c.first) k+=p.area*f*c.prod*c.kcal; if(withFish&&d>=K.fishFirst) k+=fishKcal; cum+=k; curve.push(cum); }
+  return {kcal:kcal+fishKcal, prot:prot+fishProt, fishProt, water, kw, massT, feedKg, nutrientsKg, curve, needK, needP, feedPerM2:p.area?feed/p.area:Infinity,
+    shield:water*1000/K.shieldKgM2, totalKcal:cum, savedFoodT:Math.min(1,cum/(needK*p.days))*p.crew*p.days*K.foodKg/1000, importT:(feedKg+nutrientsKg)*p.days/1000, firstCrop};
+}
+// ---------------------------------------------------------------- UI
+const fmt=(v,d=0)=>(+v).toLocaleString('en-US',{maximumFractionDigits:d,minimumFractionDigits:d});
+const col=f=>f>=1?'var(--ok)':f>=0.5?'var(--caut)':'var(--warn)';
+function row(label,val,frac){ return `<div class="row"><span>${label}</span><b>${val}</b>${frac==null?'':`<div class="meter"><i style="width:${Math.min(100,frac*100)}%;background:${col(frac)}"></i></div>`}</div>`; }
+function card(m,p,fish){
+  return row('Calories',`${fmt(m.kcal)} kcal/day · ${fmt(m.kcal/m.needK*100)}% of need`, m.kcal/m.needK)
+   +row('Protein',`${fmt(m.prot)} g/day · ${fmt(m.prot/m.needP*100)}% of need${fish?` (fish ${fmt(m.fishProt)} g)`:''}`, m.prot/m.needP)
+   +row('Water in the system',`${fmt(m.water,1)} m³ of ${p.water} m³`, m.water<=p.water?1:0.2)
+   +row('Average power',`${fmt(m.kw,1)} kW · ${fmt(m.kw/K.power*100)}% of 40 kW`, m.kw<=K.power*0.5?1:m.kw<=K.power?0.6:0.2)
+   +row('System mass',`${fmt(m.massT,1)} t`)
+   +row('Imports from Earth',`${fmt((m.feedKg+m.nutrientsKg),2)} kg/day${fish?` (fish feed ${fmt(m.feedKg,2)})`:''}`)
+   +row('Packaged food saved',`${fmt(m.savedFoodT,1)} t over the mission`)
+   +row('Water could shield',`${fmt(m.shield)} m² of wall at 20 cm`);
+}
+function chart(h,a,p){ const c=$('#chart'), g=c.getContext('2d'), W=c.width, H=c.height, L=110, B=50, T=20, R=20;
+  g.clearRect(0,0,W,H); const need=p.crew*K.kcalNeed*p.days, max=Math.max(h.curve.at(-1),a.curve.at(-1),need)*1.05||1;
+  g.font='500 22px "Public Sans",sans-serif'; g.fillStyle='#93a0ad'; g.strokeStyle='#2e3843'; g.lineWidth=1;
+  for(let i=0;i<=4;i++){ const y=T+(H-T-B)*(1-i/4); g.beginPath(); g.moveTo(L,y); g.lineTo(W-R,y); g.stroke(); g.fillText((max*i/4/1e6).toFixed(1)+' M',10,y+7); }
+  for(let i=0;i<=4;i++){ const x=L+(W-L-R)*i/4; g.fillText('day '+Math.round(p.days*i/4),x-30,H-14); }
+  const X=d=>L+(W-L-R)*d/p.days, Y=v=>T+(H-T-B)*(1-v/max);
+  g.setLineDash([10,8]); g.strokeStyle='#93a0ad'; g.lineWidth=3; g.beginPath(); g.moveTo(X(0),Y(0)); g.lineTo(X(p.days),Y(need)); g.stroke(); g.setLineDash([]);
+  for(const [m,cl] of [[h,'#7cc46a'],[a,'#e38b4f']]){ g.strokeStyle=cl; g.lineWidth=4; g.beginPath(); m.curve.forEach((v,d)=>{ if(d%2&&d!==p.days) return; d?g.lineTo(X(d),Y(v)):g.moveTo(X(d),Y(v)); }); g.stroke(); } }
+function verdict(h,a,p){
+  const kNeed=p.crew*K.kcalNeed, fishShare=a.fishProt/a.needP;
+  let t=`With <b>${p.area} m²</b> of crops for <b>${p.crew} crew</b>, plants cover about <b>${fmt(h.kcal/kNeed*100)}%</b> of daily calories and need <b>${fmt(h.kw,1)} kW</b> of grow lights, ${fmt(h.kw/K.power*100)}% of the habitat's 40 kW. `;
+  if(p.fish>0) t+=`Adding <b>${p.fish} kg</b> of tilapia supplies <b>${fmt(a.fishProt)} g</b> of protein a day (${fmt(fishShare*100)}% of the crew's need), but costs <b>${fmt(a.feedKg,1)} kg</b> of fish feed shipped from Earth every day, ${fmt(a.feedKg*p.days/1000,1)} t over the mission, unless feed is grown on site. `;
+  if(a.water>p.water) t+=`<b>Aquaponics needs ${fmt(a.water,1)} m³ of water, more than the ${p.water} m³ available.</b> `;
+  if(h.kw>K.power) t+=`<b>The lights alone exceed the 40 kW power supply.</b> `;
+  t+= p.fish===0? 'Move the fish slider to compare.' : (fishShare<0.25? 'For this crew, fish are a small protein top-up; the case for aquaponics rests on fresh food, crew morale and recycling waste, not on feeding the crew.' : 'Fish make a real protein contribution here, at the cost of more water, power, mass and daily feed.');
+  return t; }
+function balance(a,p){ const r=a.feedPerM2, el=$('#bal');
+  if(!p.fish){ el.textContent='No fish: this is the same as hydroponics.'; el.style.borderColor='var(--line)'; return; }
+  if(!p.area){ el.textContent='No plants to take up fish waste: ammonia and nitrate would build up.'; el.style.borderColor='var(--warn)'; return; }
+  const msg=r<30?`Feed is ${fmt(r)} g per m² per day, below the ~57 g balance point. Plants will lack nutrients; add fish or nutrient salts.`:r>90?`Feed is ${fmt(r)} g per m² per day, well above ~57 g. Too many fish for the plants: waste builds up unless you add grow area or filters.`:`Feed is ${fmt(r)} g per m² per day, near the ~57 g balance point. Fish waste roughly matches what the plants can use.`;
+  el.textContent=msg; el.style.borderColor=r<30||r>90?'var(--caut)':'var(--ok)'; }
+const DEF={crew:4,days:365,water:15,area:120,crop:'mix',bed:'nft',fish:150};
+function read(){ return {crew:+$('#crew').value,days:+$('#days').value,water:+$('#water').value,area:+$('#area').value,crop:$('#crop').value,bed:$('#bed').value,fish:+$('#fish').value}; }
+function update(){ const p=read();
+  $('#vcrew').textContent=p.crew; $('#vdays').textContent=`${p.days} days`; $('#vwater').textContent=`${p.water} m³`; $('#varea').textContent=`${p.area} m² (${fmt(p.area/p.crew)} per person)`; $('#vfish').textContent=`${p.fish} kg`;
+  const h=model(p,false), a=model(p,true);
+  $('#hydro').innerHTML=card(h,p,false); $('#aqua').innerHTML=card(a,p,true); $('#verdict').innerHTML=verdict(h,a,p); balance(a,p); chart(h,a,p);
+  try{ history.replaceState(null,'','?'+new URLSearchParams(p)); }catch(e){} }
+const q=new URLSearchParams(location.search); for(const k in DEF) if(q.has(k)) $('#'+k).value=q.get(k);
+document.querySelectorAll('input,select').forEach(e=>e.addEventListener('input',update));
+$('#reset').onclick=()=>{ for(const k in DEF) $('#'+k).value=DEF[k]; update(); };
+$('#assump').innerHTML='<tr><th>Value</th><th>Used in the model</th><th>Source</th></tr>'+ASSUMP.map(([a,b,c,u,mine])=>`<tr><td>${a}</td><td>${b}</td><td>${mine?'<span class="tag a">our assumption</span> ':''}${u?`<a href="${u}" target="_blank" rel="noopener">${c}</a>`:c}</td></tr>`).join('');
+update();
+</script>
+</body></html>
